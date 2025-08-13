@@ -1,0 +1,217 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Genetics Lab — PWA</title>
+<link rel="manifest" href="/manifest.json">
+<meta name="theme-color" content="#0b1220"/>
+<style>
+  :root{--bg:#071028;--card:#0b1220;--accent:#22c1c3;--muted:#9aa8b7}
+  html,body{height:100%;margin:0;background:linear-gradient(180deg,#071028,#0b1220);color:#e6eef8;font-family:Inter,Arial,sans-serif}
+  header{padding:12px 16px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid rgba(255,255,255,0.03)}
+  h1{font-size:18px;margin:0}
+  .wrap{display:flex;gap:12px;padding:12px;flex-wrap:wrap}
+  .sidebar{width:300px;background:var(--card);border-radius:10px;padding:12px}
+  .main{flex:1;padding:12px;min-width:280px}
+  .card{background:rgba(255,255,255,0.02);padding:10px;border-radius:8px;margin-bottom:10px}
+  .btn{padding:8px 12px;border-radius:8px;background:var(--accent);border:none;color:#02151a;font-weight:700}
+  .small{font-size:13px;color:var(--muted)}
+  pre{background:rgba(0,0,0,0.15);padding:8px;border-radius:6px;}
+  @media(max-width:900px){ .wrap{flex-direction:column} .sidebar{width:100%} }
+</style>
+</head>
+<body>
+<header>
+  <h1>Genetics Lab</h1>
+  <div class="small">Installable PWA • Offline ready</div>
+</header>
+
+<div class="wrap">
+  <aside class="sidebar">
+    <div class="card"><strong>Menu</strong>
+      <div style="margin-top:8px">
+        <button class="btn" onclick="show('learn')">Learn</button>
+        <button class="btn" onclick="show('punnett')">Punnett</button>
+        <button class="btn" onclick="show('game')">Practice Game</button>
+      </div>
+    </div>
+    <div class="card small">
+      <strong>Quick tips</strong>
+      <ul>
+        <li>Dominant: uppercase (A)</li>
+        <li>Recessive: lowercase (a)</li>
+        <li>Sex-linked: pay attention to X/Y</li>
+      </ul>
+    </div>
+  </aside>
+
+  <main class="main" id="main">
+    <!-- simplified game: core features from the larger version -->
+    <section id="learn" style="display:block">
+      <div class="card">
+        <h2>Learn</h2>
+        <p class="small">Interactive lessons covering Mendel, codominance, incomplete dominance, sex-linked inheritance and Hardy–Weinberg. Use the Punnett and Practice tabs to apply concepts.</p>
+      </div>
+    </section>
+
+    <section id="punnett" style="display:none">
+      <div class="card">
+        <h2>Punnett Square</h2>
+        <div class="small">
+          <label>Cross type</label>
+          <select id="crossType" onchange="updateUI()">
+            <option value="mono">Monohybrid</option>
+            <option value="di">Dihybrid</option>
+          </select>
+          <div id="monoUI" style="margin-top:8px">
+            <label>Parent 1</label><input id="p1mono" value="Aa"/>
+            <label>Parent 2</label><input id="p2mono" value="Aa"/>
+            <div style="margin-top:8px"><button class="btn" onclick="doPunnett()">Generate</button></div>
+            <div id="punnettOut" style="margin-top:8px"></div>
+          </div>
+          <div id="diUI" style="display:none;margin-top:8px">
+            <label>Parent 1 (AaBb)</label><input id="p1di" value="AaBb"/>
+            <label>Parent 2 (AaBb)</label><input id="p2di" value="AaBb"/>
+            <div style="margin-top:8px"><button class="btn" onclick="doPunnett()">Generate</button></div>
+            <div id="punnettOutDi" style="margin-top:8px"></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section id="game" style="display:none">
+      <div class="card">
+        <h2>Practice Game (Quick)</h2>
+        <p class="small">Predict percentage of recessive phenotype. Earn points.</p>
+        <div style="margin-top:8px">
+          <button class="btn" onclick="startQuick('mono')">Start Mono</button>
+          <button class="btn" onclick="startQuick('di')">Start Di</button>
+        </div>
+        <div id="round" style="margin-top:10px"></div>
+      </div>
+    </section>
+  </main>
+</div>
+
+<script>
+/* Minimal, PWA-ready subset of the full game. It includes:
+   - UI switching
+   - Small punnett generator for mono/di
+   - Quick practice rounds
+*/
+function show(id){
+  ['learn','punnett','game'].forEach(s=> document.getElementById(s).style.display = (s===id ? 'block' : 'none'));
+}
+function updateUI(){
+  const t = document.getElementById('crossType').value;
+  document.getElementById('monoUI').style.display = t==='mono' ? 'block' : 'none';
+  document.getElementById('diUI').style.display = t==='di' ? 'block' : 'none';
+}
+updateUI();
+
+function canonical(g){
+  g = g.replace(/\s+/g,'');
+  let out='';
+  for(let i=0;i<g.length;i+=2){
+    const a=g[i], b=g[i+1];
+    // uppercase first
+    out += (a.toUpperCase()===a ? a : b) + (a.toUpperCase()===a ? b : a);
+  }
+  return out;
+}
+function gametes(geno){
+  geno = geno.replace(/\s+/g,'');
+  const parts = [];
+  for(let i=0;i<geno.length;i+=2) parts.push([geno[i],geno[i+1]]);
+  let combos=[''];
+  parts.forEach(p=>{
+    const next=[];
+    combos.forEach(c=>{ next.push(c+p[0]); next.push(c+p[1]); });
+    combos = next;
+  });
+  return combos;
+}
+function combine(a,b){
+  let s='';
+  for(let i=0;i<a.length;i++){
+    const pair=[a[i], b[i]];
+    pair.sort((x,y)=> (x.toUpperCase()===y.toUpperCase()? x>y?1:-1: ( (x===x.toUpperCase())?-1:1 )));
+    s+=pair[0]+pair[1];
+  }
+  return s;
+}
+
+function tally(arr){
+  const m={}; arr.forEach(x=> m[x]=(m[x]||0)+1); return m;
+}
+
+function doPunnett(){
+  const t = document.getElementById('crossType').value;
+  if(t==='mono'){
+    const p1 = canonical(document.getElementById('p1mono').value);
+    const p2 = canonical(document.getElementById('p2mono').value);
+    const g1 = gametes(p1), g2 = gametes(p2);
+    const kids=[];
+    g1.forEach(a=> g2.forEach(b=> kids.push(combine(a,b))));
+    const counts = tally(kids);
+    let html = '<strong>Results:</strong><div class="small">';
+    Object.keys(counts).forEach(k=> html += `${k}: ${counts[k]} (${(counts[k]*100/kids.length).toFixed(1)}%)<br>`);
+    html += '</div>';
+    document.getElementById('punnettOut').innerHTML = html;
+  } else {
+    const p1 = canonical(document.getElementById('p1di').value);
+    const p2 = canonical(document.getElementById('p2di').value);
+    const g1 = gametes(p1), g2 = gametes(p2);
+    const kids=[];
+    g1.forEach(a=> g2.forEach(b=> kids.push(combine(a,b))));
+    const counts = tally(kids);
+    let html = '<strong>Dihybrid results:</strong><div class="small">';
+    Object.keys(counts).forEach(k=> html += `${k}: ${counts[k]} (${(counts[k]*100/kids.length).toFixed(1)}%)<br>`);
+    html += '</div>';
+    document.getElementById('punnettOutDi').innerHTML = html;
+  }
+}
+
+/* Quick practice */
+let currentRound=null;
+function startQuick(type){
+  if(type==='mono'){
+    const pairs=[['AA','aa'],['Aa','Aa'],['AA','Aa'],['Aa','aa']];
+    const pick=pairs[Math.floor(Math.random()*pairs.length)];
+    currentRound={type:'mono',p1:pick[0],p2:pick[1]};
+    document.getElementById('round').innerHTML = `Parents: <strong>${pick[0]}</strong> x <strong>${pick[1]}</strong><br>
+      Predict % recessive (aa): <input id="pred" type="number" min="0" max="100" value="0"/> <button class="btn" onclick="submitPred()">Submit</button>
+      <div id="res"></div>`;
+  } else {
+    const pick=['AaBb','AaBb'];
+    currentRound={type:'di',p1:pick[0],p2:pick[1]};
+    document.getElementById('round').innerHTML = `Parents: <strong>${pick[0]}</strong> x <strong>${pick[1]}</strong><br>
+      Predict % double recessive (aabb): <input id="pred" type="number" min="0" max="100" value="0"/> <button class="btn" onclick="submitPred()">Submit</button>
+      <div id="res"></div>`;
+  }
+}
+function submitPred(){
+  const pred = parseFloat(document.getElementById('pred').value||0);
+  let trueProb=0;
+  if(currentRound.type==='mono'){
+    const g1=gametes(canonical(currentRound.p1)), g2=gametes(canonical(currentRound.p2));
+    const kids=[]; g1.forEach(a=> g2.forEach(b=> kids.push(combine(a,b))));
+    const N=kids.length; let c=0; kids.forEach(k=> { if(k.toLowerCase()==='aa') c++; });
+    trueProb = c/N*100;
+  } else {
+    const g1=gametes(canonical(currentRound.p1)), g2=gametes(canonical(currentRound.p2));
+    const kids=[]; g1.forEach(a=> g2.forEach(b=> kids.push(combine(a,b))));
+    const N=kids.length; let c=0; kids.forEach(k=> { if(k.toLowerCase()==='aabb') c++; });
+    trueProb = c/N*100;
+  }
+  document.getElementById('res').innerHTML = `True probability: <strong>${trueProb.toFixed(1)}%</strong>. Your guess: ${pred}%`;
+}
+
+/* register service worker */
+if('serviceWorker' in navigator){
+  navigator.serviceWorker.register('/service-worker.js').catch(e=>console.warn('SW registration failed',e));
+}
+</script>
+</body>
+</html>
